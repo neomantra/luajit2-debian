@@ -1,0 +1,47 @@
+Index: luajit-2.0/src/luaconf.h
+===================================================================
+--- luajit-2.0.orig/src/luaconf.h	2012-08-11 22:19:29.673542303 +0000
++++ luajit-2.0/src/luaconf.h	2012-08-11 22:31:19.103541864 +0000
+@@ -30,6 +30,7 @@
+ #define LUA_XPATH \
+   ";" LUA_XROOT "share/lua/5.1/?.lua;" LUA_XROOT "share/lua/5.1/?/init.lua"
+ #define LUA_XCPATH	LUA_XROOT "lib/lua/5.1/?.so;"
++#define LUA_MULTIARCH_CPATH LUA_XROOT "lib/" DEB_HOST_MULTIARCH "/lua/5.1/?.so;"
+ #else
+ #define LUA_JDIR	LUA_ROOT "share/luajit-2.0.0-beta10/"
+ #define LUA_XPATH
+@@ -38,7 +39,7 @@
+ #define LUA_PATH_DEFAULT \
+   "./?.lua;" LUA_JDIR"?.lua;" LUA_LDIR"?.lua;" LUA_LDIR"?/init.lua" LUA_XPATH
+ #define LUA_CPATH_DEFAULT \
+-  "./?.so;" LUA_CDIR"?.so;" LUA_XCPATH LUA_CDIR"loadall.so"
++  "./?.so;" LUA_CDIR"?.so;" LUA_MULTIARCH_CPATH LUA_XCPATH LUA_CDIR"loadall.so"
+ #endif
+ 
+ /* Environment variable names for path overrides and initialization code. */
+Index: luajit-2.0/Makefile
+===================================================================
+--- luajit-2.0.orig/Makefile	2012-08-11 22:19:29.653542303 +0000
++++ luajit-2.0/Makefile	2012-08-11 22:31:19.103541864 +0000
+@@ -146,7 +146,7 @@
+ 
+ amalg:
+ 	@echo "Building LuaJIT $(VERSION)"
+-	$(MAKE) -C src amalg
++	$(MAKE) -C src amalg DEB_HOST_MULTIARCH=$(DEB_HOST_MULTIARCH)
+ 
+ clean:
+ 	$(MAKE) -C src clean
+Index: luajit-2.0/src/Makefile
+===================================================================
+--- luajit-2.0.orig/src/Makefile	2012-08-11 22:19:29.653542303 +0000
++++ luajit-2.0/src/Makefile	2012-08-11 22:31:19.103541864 +0000
+@@ -88,7 +88,7 @@
+ ##############################################################################
+ # Enable/disable these features as needed, but make sure you force a full
+ # recompile with "make clean", followed by "make".
+-XCFLAGS=
++XCFLAGS= -DDEB_HOST_MULTIARCH=\"$(DEB_HOST_MULTIARCH)\"
+ #
+ # Permanently disable the FFI extension to reduce the size of the LuaJIT
+ # executable. But please consider that the FFI library is compiled-in,
