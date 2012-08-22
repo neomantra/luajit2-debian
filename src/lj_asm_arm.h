@@ -339,18 +339,27 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 {
   uint32_t n, nargs = CCI_NARGS(ci);
   int32_t ofs = 0;
+#if LJ_SOFTFP
   Reg gpr = REGARG_FIRSTGPR;
-#if !LJ_SOFTFP
-  Reg fpr = REGARG_FIRSTFPR, fprodd = 0;
+#else
+  Reg gpr, fpr = REGARG_FIRSTFPR, fprodd = 0;
 #endif
   if ((void *)ci->func)
     emit_call(as, (void *)ci->func);
+#if !LJ_SOFTFP
+  for (gpr = REGARG_FIRSTGPR; gpr <= REGARG_LASTGPR; gpr++)
+    as->cost[gpr] = REGCOST(~0u, 0u);
+  gpr = REGARG_FIRSTGPR;
+#endif
   for (n = 0; n < nargs; n++) {  /* Setup args. */
     IRRef ref = args[n];
     IRIns *ir = IR(ref);
 #if !LJ_SOFTFP
     if (irt_isfp(ir->t)) {
+      RegSet of = as->freeset;
       Reg src;
+      /* Workaround to protect argument GPRs from being used for remat. */
+      as->freeset &= ~RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1);
       if (!LJ_ABI_SOFTFP && !(ci->flags & CCI_VARARG)) {
 	if (irt_isnum(ir->t)) {
 	  if (fpr <= REGARG_LASTFPR) {
@@ -368,15 +377,17 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 	  fprodd = fpr++;
 	  continue;
 	}
-	src = ra_alloc1(as, ref, RSET_FPR);
+	src = ra_alloc1(as, ref, RSET_FPR);  /* May alloc GPR to remat FPR. */
 	fprodd = 0;
 	goto stackfp;
       }
-      src = ra_alloc1(as, ref, RSET_FPR);
+      src = ra_alloc1(as, ref, RSET_FPR);  /* May alloc GPR to remat FPR. */
+      as->freeset |= (of & RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1));
       if (irt_isnum(ir->t)) gpr = (gpr+1) & ~1u;
       if (gpr <= REGARG_LASTGPR) {
 	lua_assert(rset_test(as->freeset, gpr));  /* Must have been evicted. */
 	if (irt_isnum(ir->t)) {
+	  lua_assert(rset_test(as->freeset, gpr+1));  /* Ditto. */
 	  emit_dnm(as, ARMI_VMOV_RR_D, gpr, gpr+1, (src & 15));
 	  gpr += 2;
 	} else {
@@ -1560,8 +1571,9 @@ static void asm_callid(ASMState *as, IRIns *ir, IRCallID id)
 static void asm_callround(ASMState *as, IRIns *ir, int id)
 {
   /* The modified regs must match with the *.dasc implementation. */
-  RegSet drop = RID2RSET(RID_D1)|RID2RSET(RID_D2)|
+  RegSet drop = RID2RSET(RID_D0)|RID2RSET(RID_D1)|RID2RSET(RID_D2)|
 		RID2RSET(RID_R0)|RID2RSET(RID_R1);
+  if (ra_hasreg(ir->r)) rset_clear(drop, ir->r);
   ra_evictset(as, drop);
   ra_destreg(as, ir, RID_FPRET);
   emit_call(as, id == IRFPM_FLOOR ? (void *)lj_vm_floor_hf :
