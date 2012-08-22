@@ -1,3 +1,9 @@
+luajit (2.0.0~beta10+git20120819-1ubuntu1) unstable; urgency=low
+
+  * Update to latest HEAD af2cb0254217c295 for bugfixes
+
+ -- Alex Bradbury <asb@asbradbury.org>  Wed, 22 Aug 2012 20:45:01 +0100
+
 luajit (2.0.0~beta10+git20120711-1) unstable; urgency=low
 
   * Import latest HEAD with ARM VFP support
