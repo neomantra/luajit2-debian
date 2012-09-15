@@ -237,7 +237,7 @@ static void asm_fusexref(ASMState *as, ARMIns ai, Reg rd, IRRef ref,
 {
   IRIns *ir = IR(ref);
   Reg base;
-  if (ra_noreg(ir->r) && mayfuse(as, ref)) {
+  if (ra_noreg(ir->r) && canfuse(as, ir)) {
     int32_t lim = (!LJ_SOFTFP && (ai & 0x08000000)) ? 1024 :
 		   (ai & 0x04000000) ? 4096 : 256;
     if (ir->o == IR_ADD) {
@@ -358,8 +358,6 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
     if (irt_isfp(ir->t)) {
       RegSet of = as->freeset;
       Reg src;
-      /* Workaround to protect argument GPRs from being used for remat. */
-      as->freeset &= ~RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1);
       if (!LJ_ABI_SOFTFP && !(ci->flags & CCI_VARARG)) {
 	if (irt_isnum(ir->t)) {
 	  if (fpr <= REGARG_LASTFPR) {
@@ -377,10 +375,15 @@ static void asm_gencall(ASMState *as, const CCallInfo *ci, IRRef *args)
 	  fprodd = fpr++;
 	  continue;
 	}
+	/* Workaround to protect argument GPRs from being used for remat. */
+	as->freeset &= ~RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1);
 	src = ra_alloc1(as, ref, RSET_FPR);  /* May alloc GPR to remat FPR. */
+	as->freeset |= (of & RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1));
 	fprodd = 0;
 	goto stackfp;
       }
+      /* Workaround to protect argument GPRs from being used for remat. */
+      as->freeset &= ~RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1);
       src = ra_alloc1(as, ref, RSET_FPR);  /* May alloc GPR to remat FPR. */
       as->freeset |= (of & RSET_RANGE(REGARG_FIRSTGPR, REGARG_LASTGPR+1));
       if (irt_isnum(ir->t)) gpr = (gpr+1) & ~1u;
@@ -623,7 +626,7 @@ static void asm_conv64(ASMState *as, IRIns *ir)
 
 static void asm_strto(ASMState *as, IRIns *ir)
 {
-  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_str_tonum];
+  const CCallInfo *ci = &lj_ir_callinfo[IRCALL_lj_strscan_num];
   IRRef args[2];
   Reg rlo = 0, rhi = 0, tmp;
   int destused = ra_used(ir);
@@ -2099,9 +2102,12 @@ static RegSet asm_head_side_base(ASMState *as, IRIns *irp, RegSet allow)
   if (ra_hasspill(irp->s)) {
     rset_clear(allow, ra_dest(as, ir, allow));
   } else {
-    lua_assert(ra_hasreg(irp->r));
-    rset_clear(allow, irp->r);
-    ra_destreg(as, ir, irp->r);
+    Reg r = irp->r;
+    lua_assert(ra_hasreg(r));
+    rset_clear(allow, r);
+    if (r != ir->r && !rset_test(as->freeset, r))
+      ra_restore(as, regcost_ref(as->cost[r]));
+    ra_destreg(as, ir, r);
   }
   return allow;
 }
