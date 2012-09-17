@@ -644,6 +644,7 @@ static void ra_destreg(ASMState *as, IRIns *ir, Reg r)
 {
   Reg dest = ra_dest(as, ir, RID2RSET(r));
   if (dest != r) {
+    lua_assert(rset_test(as->freeset, r));
     ra_modified(as, r);
     emit_movrr(as, ir, dest, r);
   }
@@ -807,9 +808,9 @@ static void asm_snap_alloc1(ASMState *as, IRRef ref)
 	asm_snap_alloc1(as, ir->op2);
 	if (LJ_32 && (ir+1)->o == IR_HIOP)
 	  asm_snap_alloc1(as, (ir+1)->op2);
-      }
+      } else
 #endif
-      else {  /* Allocate stored values for TNEW, TDUP and CNEW. */
+      {  /* Allocate stored values for TNEW, TDUP and CNEW. */
 	IRIns *irs;
 	lua_assert(ir->o == IR_TNEW || ir->o == IR_TDUP || ir->o == IR_CNEW);
 	for (irs = IR(as->snapref-1); irs > ir; irs--)
@@ -1748,8 +1749,12 @@ static void asm_setup_regsp(ASMState *as)
       }
       break;
 #endif
-    /* Do not propagate hints across type conversions. */
+    /* Do not propagate hints across type conversions or loads. */
     case IR_TOBIT:
+    case IR_XLOAD:
+#if !LJ_TARGET_ARM
+    case IR_ALOAD: case IR_HLOAD: case IR_ULOAD: case IR_VLOAD:
+#endif
       break;
     case IR_CONV:
       if (irt_isfp(ir->t) || (ir->op2 & IRCONV_SRCMASK) == IRT_NUM ||

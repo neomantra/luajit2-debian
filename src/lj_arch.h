@@ -318,6 +318,10 @@
 #if defined(_LP64)
 #error "No support for PowerPC 64 bit mode"
 #endif
+#elif LJ_TARGET_MIPS
+#if defined(__mips_soft_float)
+#error "No support for MIPS CPUs without FPU"
+#endif
 #endif
 #endif
 
@@ -394,6 +398,13 @@
 
 #if defined(LUAJIT_NO_UNWIND) || defined(__symbian__) || LJ_TARGET_IOS || LJ_TARGET_PS3
 #define LJ_NO_UNWIND		1
+#endif
+
+/* Compatibility with Lua 5.1 vs. 5.2. */
+#ifdef LUAJIT_ENABLE_LUA52COMPAT
+#define LJ_52			1
+#else
+#define LJ_52			0
 #endif
 
 #endif
