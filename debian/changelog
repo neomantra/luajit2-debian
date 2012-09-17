@@ -1,4 +1,10 @@
-luajit (2.0.0~beta10+git20120819-1ubuntu1) unstable; urgency=low
+luajit (2.0.0~beta10+git20120912-1) unstable; urgency=low
+
+  * Update to latest HEAD aed200937815
+
+ -- Alex Bradbury <asb@asbradbury.org>  Sat, 15 Sep 2012 21:33:16 +0100
+
+luajit (2.0.0~beta10+git20120819-1) unstable; urgency=low
 
   * Update to latest HEAD af2cb0254217c295 for bugfixes
 
